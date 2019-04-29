@@ -8,6 +8,7 @@ import (
 type ErrorStatusT int
 type InvoiceStatusT int
 type LineItemTypeT int
+type PaymentStatusT int
 
 const (
 
@@ -41,6 +42,11 @@ const (
 	LineItemTypeLabor   LineItemTypeT = 1 // Labor line items
 	LineItemTypeExpense LineItemTypeT = 2 // Expenses incurred line items
 	LineItemTypeMisc    LineItemTypeT = 3 // Catch all for anything else
+
+	// Payment information status types
+	PaymentStatusInvalid  PaymentStatusT = 0 // Invalid status
+	PaymentStatusWatching PaymentStatusT = 1 // Payment currently watching
+	PaymentStatusPaid     PaymentStatusT = 2 // Payment fully paid
 
 	InvoiceInputVersion = 1
 
@@ -406,4 +412,15 @@ type LineItemPayouts struct {
 // date range.
 type LineItemPayoutsReply struct {
 	LineItems []LineItemsInput `json:"lineitems"` // Line items within the requested date range.
+}
+
+type PaymentInformation struct {
+	Token           string         `json:"token"`
+	Address         string         `json:"address"`
+	TxsID           []string       `json:"txsid"`
+	TimeStarted     int64          `json:"timestarted"`
+	TimeLastUpdated int64          `json:"timelastupdated"`
+	AmountNeeded    dcrutil.Amount `json:"amountneeded"`
+	AmountReceived  dcrutil.Amount `json:"amountreceived"`
+	Status          PaymentStatusT `json:"status"`
 }
