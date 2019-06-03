@@ -885,8 +885,11 @@ func (p *politeiawww) processSetInvoiceStatus(sis cms.SetInvoiceStatus, u *user.
 	dbInvoice.Status = c.NewStatus
 
 	// Calculate amount of DCR needed
-	dcrAmount := dcrutil.Amount(0)
-
+	payout, err := p.calculatePayout(*dbInvoice)
+	if err != nil {
+		return nil, err
+	}
+	dcrAmount := payout.DCRTotal * dcrutil.AtomsPerCoin
 	// If approved then update Invoice's Payment table in DB
 	if c.NewStatus == cms.InvoiceStatusApproved {
 		dbInvoice.Payments = database.Payments{
@@ -1175,48 +1178,10 @@ func (p *politeiawww) processGeneratePayouts(gp cms.GeneratePayouts, u *user.Use
 	reply := &cms.GeneratePayoutsReply{}
 	payouts := make([]cms.Payout, 0, len(dbInvs))
 	for _, inv := range dbInvs {
-		payout := cms.Payout{}
-
-		var username string
-		u, err := p.db.UserGetByPubKey(inv.PublicKey)
+		payout, err := p.calculatePayout(inv)
 		if err != nil {
-			log.Errorf("processGeneratePayouts: UserGetByPubKey: "+
-				"token:%v pubkey:%v err:%v", inv.Token, inv.PublicKey, err)
-		} else {
-			username = u.Username
+			return reply, err
 		}
-
-		var totalLaborMinutes uint
-		var totalExpenses uint
-		for _, lineItem := range inv.LineItems {
-			switch lineItem.Type {
-			case cms.LineItemTypeLabor:
-				totalLaborMinutes += lineItem.Labor
-			case cms.LineItemTypeExpense, cms.LineItemTypeMisc:
-				totalExpenses += lineItem.Expenses
-			}
-		}
-
-		payout.LaborTotal = totalLaborMinutes * inv.ContractorRate / 60
-		payout.ContractorRate = inv.ContractorRate
-		payout.ExpenseTotal = totalExpenses
-
-		payout.Address = inv.PaymentAddress
-		payout.Token = inv.Token
-		payout.ContractorName = inv.ContractorName
-
-		payout.Username = username
-		payout.Month = inv.Month
-		payout.Year = inv.Year
-		payout.Total = payout.LaborTotal + payout.ExpenseTotal
-		if inv.ExchangeRate > 0 {
-			payout.DCRTotal, err = dcrutil.NewAmount(float64(payout.Total) /
-				float64(inv.ExchangeRate))
-			log.Errorf("processGeneratePayouts %v: NewAmount: %v",
-				inv.Token, err)
-		}
-		payout.ExchangeRate = inv.ExchangeRate
-
 		payouts = append(payouts, payout)
 	}
 	reply.Payouts = payouts
@@ -1591,4 +1556,49 @@ func (p *politeiawww) processLineItemPayouts(lip cms.LineItemPayouts) (*cms.Line
 	lineItems := convertDatabaseToLineItems(dbLineItems)
 	reply.LineItems = lineItems
 	return reply, nil
+}
+
+func (p politeiawww) calculatePayout(inv database.Invoice) (cms.Payout, error) {
+	payout := cms.Payout{}
+
+	var username string
+	u, err := p.db.UserGetByPubKey(inv.PublicKey)
+	if err != nil {
+		log.Errorf("processGeneratePayouts: UserGetByPubKey: "+
+			"token:%v pubkey:%v err:%v", inv.Token, inv.PublicKey, err)
+	} else {
+		username = u.Username
+	}
+
+	var totalLaborMinutes uint
+	var totalExpenses uint
+	for _, lineItem := range inv.LineItems {
+		switch lineItem.Type {
+		case cms.LineItemTypeLabor:
+			totalLaborMinutes += lineItem.Labor
+		case cms.LineItemTypeExpense, cms.LineItemTypeMisc:
+			totalExpenses += lineItem.Expenses
+		}
+	}
+
+	payout.LaborTotal = totalLaborMinutes * inv.ContractorRate / 60
+	payout.ContractorRate = inv.ContractorRate
+	payout.ExpenseTotal = totalExpenses
+
+	payout.Address = inv.PaymentAddress
+	payout.Token = inv.Token
+	payout.ContractorName = inv.ContractorName
+
+	payout.Username = username
+	payout.Month = inv.Month
+	payout.Year = inv.Year
+	payout.Total = payout.LaborTotal + payout.ExpenseTotal
+	if inv.ExchangeRate > 0 {
+		payout.DCRTotal, err = dcrutil.NewAmount(float64(payout.Total) /
+			float64(inv.ExchangeRate))
+		log.Errorf("processGeneratePayouts %v: NewAmount: %v",
+			inv.Token, err)
+	}
+	payout.ExchangeRate = inv.ExchangeRate
+	return payout, nil
 }
