@@ -1558,7 +1558,7 @@ func (p *politeiawww) processLineItemPayouts(lip cms.LineItemPayouts) (*cms.Line
 	return reply, nil
 }
 
-func (p politeiawww) calculatePayout(inv database.Invoice) (cms.Payout, error) {
+func (p *politeiawww) calculatePayout(inv database.Invoice) (cms.Payout, error) {
 	payout := cms.Payout{}
 
 	var username string
