@@ -522,11 +522,10 @@ func _main() error {
 		p.cron = cron.New()
 		p.checkInvoiceNotifications()
 
-		// XXX set up address watcher by checking db for approved invoices
-		// and get their addresses and add them to the watcher.
+		p.pubSubDcrdata = &wsDcrdata{}
 
 		// XXX how many addresses should we plan on storing?
-		p.currentSubs = make([]string, 0, 1048)
+		p.pubSubDcrdata.currentSubs = make([]string, 0, 1048)
 
 		p.setupWatcher()
 
@@ -625,8 +624,8 @@ done:
 	// Close user db connection
 	p.db.Close()
 
-	if p.wsClient != nil {
-		p.wsClient.Stop()
+	if p.pubSubDcrdata.client != nil {
+		p.pubSubDcrdata.client.Stop()
 	}
 
 	return nil
